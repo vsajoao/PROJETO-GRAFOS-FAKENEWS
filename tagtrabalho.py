@@ -9,6 +9,14 @@ from networkx.algorithms.community import greedy_modularity_communities, girvan_
 import warnings
 warnings.filterwarnings('ignore')
 
+# ⚡ CONFIGURAÇÃO DE VELOCIDADE
+FAST_MODE = True  # Mude para False se quiser análise completa (mais lenta)
+MAX_NODES = 1000 if FAST_MODE else 10000
+MAX_EDGES = 3000 if FAST_MODE else 50000
+
+print(f"🚀 Modo: {'RÁPIDO' if FAST_MODE else 'COMPLETO'}")
+print(f"Limites: {MAX_NODES} nós, {MAX_EDGES} arestas")
+
 # Set up plotting style
 plt.style.use('default')
 sns.set_palette("husl")
@@ -28,11 +36,14 @@ def load_edgelist(filename):
 def generate_sample_data():
     """Generate sample Twitter-like network data for demonstration"""
     np.random.seed(42)
-    users = [f"user_{i}" for i in range(1000)]
+    n_users = 300 if FAST_MODE else 500
+    n_edges = 1000 if FAST_MODE else 2000
+    
+    users = [f"user_{i}" for i in range(n_users)]
     
     # Create realistic network structure
     edges = []
-    for i in range(5000):
+    for i in range(n_edges):
         user1 = np.random.choice(users)
         user2 = np.random.choice(users)
         if user1 != user2:
@@ -62,7 +73,21 @@ except:
 df_all = pd.concat([df_retweet, df_reply, df_mention])
 df_all = df_all.groupby(['user1', 'user2']).sum().reset_index()
 
-print(f"Total de interações únicas: {len(df_all)}")
+# OTIMIZAÇÃO: Filtrar apenas interações com peso significativo e limitar tamanho
+min_weight = 2  # Filtrar interações fracas
+df_all = df_all[df_all['weight'] >= min_weight]
+
+# Limitar a um subconjunto se muito grande
+if len(df_all) > MAX_EDGES:
+    print(f"Dataset muito grande ({len(df_all)} arestas). Usando subset de {MAX_EDGES} arestas com maiores pesos.")
+    df_all = df_all.nlargest(MAX_EDGES, 'weight')
+
+# Filtrar usuários com poucas conexões para reduzir ruído
+user_counts = pd.concat([df_all['user1'], df_all['user2']]).value_counts()
+active_users = user_counts[user_counts >= 2].index.tolist()  # Pelo menos 2 interações
+df_all = df_all[df_all['user1'].isin(active_users) & df_all['user2'].isin(active_users)]
+
+print(f"Total de interações após filtros: {len(df_all)}")
 print(f"Usuários únicos: {len(set(df_all['user1'].tolist() + df_all['user2'].tolist()))}")
 
 # =========================================================
@@ -99,6 +124,14 @@ for i, (user, score) in enumerate(top_pagerank, 1):
 print("\n3.2 Detectando comunidades...")
 # Usar grafo não-direcionado para detecção de comunidades
 G_undirected = G.to_undirected()
+
+# OTIMIZAÇÃO: Usar apenas componente gigante se grafo for desconectado
+if not nx.is_connected(G_undirected):
+    # Pegar apenas o maior componente conectado
+    largest_cc = max(nx.connected_components(G_undirected), key=len)
+    G_undirected = G_undirected.subgraph(largest_cc).copy()
+    print(f"Usando maior componente conectado: {len(largest_cc)} nós")
+
 communities = list(greedy_modularity_communities(G_undirected))
 
 print(f"Número de comunidades detectadas: {len(communities)}")
@@ -110,18 +143,36 @@ for i, size in enumerate(community_sizes[:5], 1):
 # 3.3 MEDIDAS DE CENTRALIDADE
 print("\n3.3 Calculando medidas de centralidade...")
 
-# Centralidade de grau
+# Centralidade de grau (rápida)
 degree_centrality = nx.degree_centrality(G)
 top_degree = sorted(degree_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
 
-# Centralidade de intermediação (betweenness)
-print("Calculando centralidade de intermediação...")
-betweenness_centrality = nx.betweenness_centrality(G, weight='weight')
+# OTIMIZAÇÃO: Calcular betweenness apenas para subset de nós importantes se grafo for muito grande
+if G.number_of_nodes() > 1000:
+    print("Grafo grande detectado. Calculando betweenness para top 200 nós por grau...")
+    # Pegar apenas os top nós por grau para calcular betweenness
+    top_nodes_by_degree = sorted(degree_centrality.items(), key=lambda x: x[1], reverse=True)[:200]
+    important_nodes = [node for node, _ in top_nodes_by_degree]
+    betweenness_centrality = nx.betweenness_centrality_subset(G, sources=important_nodes, targets=important_nodes, weight='weight')
+else:
+    print("Calculando centralidade de intermediação...")
+    betweenness_centrality = nx.betweenness_centrality(G, weight='weight')
+
 top_betweenness = sorted(betweenness_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
 
-# Centralidade de proximidade (closeness)
-print("Calculando centralidade de proximidade...")
-closeness_centrality = nx.closeness_centrality(G, distance='weight')
+# OTIMIZAÇÃO: Closeness centralidade também pode ser limitada
+if G.number_of_nodes() > 1000:
+    print("Calculando closeness centrality para subset...")
+    closeness_centrality = {}
+    for node in important_nodes:
+        try:
+            closeness_centrality[node] = nx.closeness_centrality(G, u=node, distance='weight')
+        except:
+            closeness_centrality[node] = 0
+else:
+    print("Calculando centralidade de proximidade...")
+    closeness_centrality = nx.closeness_centrality(G, distance='weight')
+
 top_closeness = sorted(closeness_centrality.items(), key=lambda x: x[1], reverse=True)[:5]
 
 print("\nTop 5 por Centralidade de Grau:")
