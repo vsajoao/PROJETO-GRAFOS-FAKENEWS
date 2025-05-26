@@ -222,9 +222,9 @@ for i, (user, score) in enumerate(potential_spreaders, 1):
     print(f"{i}. {user}: Score combinado {score:.6f}")
 
 # =========================================================
-# ETAPA 5: VISUALIZAÇÕES
+# ETAPA 5: VISUALIZAÇÕES EM PYTHON
 # =========================================================
-print("\n=== ETAPA 5: VISUALIZAÇÕES ===")
+print("\n=== ETAPA 5: VISUALIZAÇÕES EM PYTHON ===")
 
 # 5.1 Distribuição de graus
 plt.figure(figsize=(15, 10))
@@ -299,9 +299,153 @@ plt.tight_layout()
 plt.show()
 
 # =========================================================
-# ETAPA 6: ANÁLISE DE RESULTADOS
+# ETAPA 6: EXPORTAÇÃO PARA GEPHI
 # =========================================================
-print("\n=== ETAPA 6: ANÁLISE DE RESULTADOS ===")
+print("\n=== ETAPA 6: EXPORTAÇÃO PARA GEPHI ===")
+
+def prepare_gephi_files(G, pagerank_scores, communities, centrality_measures):
+    """Prepara arquivos para importação no Gephi"""
+    
+    # 1. ARQUIVO DE NÓS (nodes.csv)
+    nodes_data = []
+    
+    # Criar mapeamento de comunidades
+    node_to_community = {}
+    for i, community in enumerate(communities):
+        for node in community:
+            node_to_community[node] = i
+    
+    for node in G.nodes():
+        node_data = {
+            'Id': node,
+            'Label': node,
+            'PageRank': pagerank_scores.get(node, 0),
+            'DegreeCentrality': centrality_measures['degree'].get(node, 0),
+            'BetweennessCentrality': centrality_measures['betweenness'].get(node, 0),
+            'ClosenessCentrality': centrality_measures['closeness'].get(node, 0),
+            'Community': node_to_community.get(node, -1),
+            'InDegree': G.in_degree(node),
+            'OutDegree': G.out_degree(node),
+            'TotalDegree': G.degree(node)
+        }
+        nodes_data.append(node_data)
+    
+    nodes_df = pd.DataFrame(nodes_data)
+    nodes_df.to_csv('gephi_nodes.csv', index=False)
+    
+    # 2. ARQUIVO DE ARESTAS (edges.csv)
+    edges_data = []
+    for source, target, data in G.edges(data=True):
+        edge_data = {
+            'Source': source,
+            'Target': target,
+            'Weight': data.get('weight', 1),
+            'Type': 'Directed'
+        }
+        edges_data.append(edge_data)
+    
+    edges_df = pd.DataFrame(edges_data)
+    edges_df.to_csv('gephi_edges.csv', index=False)
+    
+    # 3. ARQUIVO GEXF (formato nativo do Gephi)
+    # Adicionar atributos aos nós
+    for node in G.nodes():
+        G.nodes[node]['pagerank'] = pagerank_scores.get(node, 0)
+        G.nodes[node]['community'] = node_to_community.get(node, -1)
+        G.nodes[node]['degree_centrality'] = centrality_measures['degree'].get(node, 0)
+        G.nodes[node]['betweenness_centrality'] = centrality_measures['betweenness'].get(node, 0)
+        G.nodes[node]['closeness_centrality'] = centrality_measures['closeness'].get(node, 0)
+    
+    # Salvar em formato GEXF
+    nx.write_gexf(G, 'twitter_network.gexf')
+    
+    print("✅ Arquivos criados para Gephi:")
+    print("   • gephi_nodes.csv - Dados dos nós")
+    print("   • gephi_edges.csv - Dados das arestas") 
+    print("   • twitter_network.gexf - Arquivo completo (recomendado)")
+    
+    return nodes_df, edges_df
+
+# Preparar medidas de centralidade para exportação
+centrality_measures = {
+    'degree': degree_centrality,
+    'betweenness': betweenness_centrality,
+    'closeness': closeness_centrality
+}
+
+# Exportar arquivos para Gephi
+nodes_df, edges_df = prepare_gephi_files(G, pagerank_scores, communities, centrality_measures)
+
+print(f"\n📁 Estatísticas dos arquivos exportados:")
+print(f"   • Nós: {len(nodes_df)} usuários")
+print(f"   • Arestas: {len(edges_df)} interações")
+print(f"   • Comunidades: {len(communities)}")
+
+# =========================================================
+# ETAPA 7: GUIA PARA USO NO GEPHI
+# =========================================================
+print("\n=== ETAPA 7: COMO USAR NO GEPHI ===")
+
+gephi_guide = """
+🎯 PASSOS PARA ANÁLISE NO GEPHI:
+
+1. IMPORTAÇÃO:
+   • Abra o Gephi
+   • File → Open → Selecione 'twitter_network.gexf'
+   • Ou importe separadamente: File → Import spreadsheet
+     - Primeiro: gephi_nodes.csv (como Nodes table)
+     - Depois: gephi_edges.csv (como Edges table)
+
+2. LAYOUT (VISUALIZAÇÃO):
+   • Aba 'Layout' → Escolha algoritmo:
+     - ForceAtlas 2: Melhor para redes sociais
+     - Fruchterman Reingold: Alternativa rápida
+     - Yifan Hu: Para redes grandes
+   • Clique 'Run' e ajuste parâmetros
+
+3. APARÊNCIA (CORES E TAMANHOS):
+   • Aba 'Appearance':
+     - Nodes → Size → Ranking → PageRank (tamanho por influência)
+     - Nodes → Color → Partition → Community (cor por comunidade)
+     - Edges → Size → Weight (espessura por peso)
+
+4. ESTATÍSTICAS:
+   • Aba 'Statistics' → Execute:
+     - Average Degree
+     - Network Diameter  
+     - Modularity (validar comunidades)
+     - Average Clustering Coefficient
+
+5. FILTROS:
+   • Aba 'Filters' → Topology:
+     - Degree Range: Mostrar apenas nós com grau > X
+     - Giant Component: Filtrar componente principal
+   • Attributes:
+     - PageRank Range: Top usuários influentes
+
+6. VISUALIZAÇÕES AVANÇADAS:
+   • Preview → Ajustar labels, cores, formas
+   • Export como PNG/PDF para relatório
+
+7. ANÁLISES ESPECÍFICAS PARA FAKE NEWS:
+   • Identificar hubs (nós grandes, centrais)
+   • Observar bridges entre comunidades
+   • Destacar usuários com alto betweenness
+   • Analisar padrões de disseminação
+"""
+
+print(gephi_guide)
+
+# Criar arquivo com instruções
+with open('gephi_instructions.txt', 'w', encoding='utf-8') as f:
+    f.write(gephi_guide)
+
+print("📋 Instruções salvas em 'gephi_instructions.txt'")
+
+# =========================================================
+# ETAPA 8: ANÁLISE DE RESULTADOS
+# =========================================================
+print("\n=== ETAPA 8: ANÁLISE DE RESULTADOS ===")
 
 print(f"\n📊 RESUMO DA ANÁLISE:")
 print(f"• Rede analisada com {G.number_of_nodes()} usuários e {G.number_of_edges()} interações")
