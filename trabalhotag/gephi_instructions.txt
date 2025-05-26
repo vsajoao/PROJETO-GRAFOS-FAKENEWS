@@ -1,0 +1,46 @@
+
+🎯 PASSOS PARA ANÁLISE NO GEPHI:
+
+1. IMPORTAÇÃO:
+   • Abra o Gephi
+   • File → Open → Selecione 'twitter_network.gexf'
+   • Ou importe separadamente: File → Import spreadsheet
+     - Primeiro: gephi_nodes.csv (como Nodes table)
+     - Depois: gephi_edges.csv (como Edges table)
+
+2. LAYOUT (VISUALIZAÇÃO):
+   • Aba 'Layout' → Escolha algoritmo:
+     - ForceAtlas 2: Melhor para redes sociais
+     - Fruchterman Reingold: Alternativa rápida
+     - Yifan Hu: Para redes grandes
+   • Clique 'Run' e ajuste parâmetros
+
+3. APARÊNCIA (CORES E TAMANHOS):
+   • Aba 'Appearance':
+     - Nodes → Size → Ranking → PageRank (tamanho por influência)
+     - Nodes → Color → Partition → Community (cor por comunidade)
+     - Edges → Size → Weight (espessura por peso)
+
+4. ESTATÍSTICAS:
+   • Aba 'Statistics' → Execute:
+     - Average Degree
+     - Network Diameter  
+     - Modularity (validar comunidades)
+     - Average Clustering Coefficient
+
+5. FILTROS:
+   • Aba 'Filters' → Topology:
+     - Degree Range: Mostrar apenas nós com grau > X
+     - Giant Component: Filtrar componente principal
+   • Attributes:
+     - PageRank Range: Top usuários influentes
+
+6. VISUALIZAÇÕES AVANÇADAS:
+   • Preview → Ajustar labels, cores, formas
+   • Export como PNG/PDF para relatório
+
+7. ANÁLISES ESPECÍFICAS PARA FAKE NEWS:
+   • Identificar hubs (nós grandes, centrais)
+   • Observar bridges entre comunidades
+   • Destacar usuários com alto betweenness
+   • Analisar padrões de disseminação
